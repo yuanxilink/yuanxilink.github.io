@@ -1,0 +1,11 @@
+deepseek-chat-website/
+├── frontend/              # 前端代码
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── api/                   # 后端代码（Serverless Function）
+│   └── chat.js
+├── .github/workflows/     # GitHub Actions 配置
+│   └── deploy.yml
+├── vercel.json            # Vercel 部署配置
+└── README.md
