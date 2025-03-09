@@ -1,18 +1,317 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>DeepSeek Chat</title>
-    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat | DeepSeek</title>
+    <style>
+        /* 基础重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        /* 渐变背景 */
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        /* 主容器 */
+        .chat-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        /* 标题样式 */
+        .header {
+            background: linear-gradient(45deg, #6366f1, #8b5cf6);
+            padding: 1.5rem;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .header h1::before {
+            content: '';
+            display: block;
+            width: 30px;
+            height: 30px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>');
+        }
+
+        /* 消息区域 */
+        .messages {
+            height: 70vh;
+            padding: 1.5rem;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        /* 自定义滚动条 */
+        .messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        .messages::-webkit-scrollbar-thumb {
+            background: #6366f1;
+            border-radius: 4px;
+        }
+
+        /* 消息气泡 */
+        .message {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 1rem 1.5rem;
+            border-radius: 1.5rem;
+            position: relative;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        /* 用户消息 */
+        .user .message-bubble {
+            background: #6366f1;
+            color: white;
+            border-radius: 1.5rem 1.5rem 0 1.5rem;
+        }
+
+        /* AI消息 */
+        .bot .message-bubble {
+            background: white;
+            color: #374151;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border-radius: 1.5rem 1.5rem 1.5rem 0;
+        }
+
+        /* 输入区域 */
+        .input-area {
+            padding: 1.5rem;
+            background: rgba(249, 250, 251, 0.8);
+            border-top: 1px solid rgba(209, 213, 219, 0.3);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 1rem;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            transform: scale(1.02);
+        }
+
+        .send-button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .send-button:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+
+        .send-button:active {
+            transform: translateY(0);
+        }
+
+        /* 加载动画 */
+        .typing-indicator {
+            display: none;
+            padding: 1rem;
+            background: white;
+            border-radius: 1.5rem;
+            margin: 1rem 0;
+            width: fit-content;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #6366f1;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 3px;
+            animation: typing 1.4s infinite;
+        }
+
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            .message-bubble {
+                max-width: 85%;
+            }
+
+            .input-area {
+                flex-direction: column;
+            }
+
+            .send-button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🤖 DeepSeek Chat</h1>
-        <div id="chat-container"></div>
-        <div class="input-box">
-            <input type="text" id="user-input" placeholder="输入消息...">
-            <button onclick="sendMessage()">发送</button>
+    <div class="chat-container">
+        <div class="header">
+            <h1>
+                <span>DeepSeek AI Chat</span>
+            </h1>
+        </div>
+        
+        <div class="messages" id="messages">
+            <!-- 示例消息 -->
+            <div class="message bot">
+                <div class="message-bubble">
+                    👋 您好！我是DeepSeek智能助手，有什么可以帮您？
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing">
+            <div class="typing-dot"></div>
+            <div class="typing-dot" style="animation-delay: 0.2s"></div>
+            <div class="typing-dot" style="animation-delay: 0.4s"></div>
+        </div>
+
+        <div class="input-area">
+            <input 
+                type="text" 
+                class="input-field" 
+                id="input" 
+                placeholder="输入消息..."
+                autocomplete="off"
+            >
+            <button class="send-button" onclick="sendMessage()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                发送
+            </button>
         </div>
     </div>
-    <script src="app.js"></script>
+
+    <script>
+        // 消息发送逻辑
+        async function sendMessage() {
+            const input = document.getElementById('input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // 添加用户消息
+            addMessage('user', message);
+            input.value = '';
+
+            // 显示正在输入提示
+            showTypingIndicator(true);
+
+            try {
+                // 模拟API调用
+                const response = await mockApiCall(message);
+                addMessage('bot', response);
+            } catch (error) {
+                addMessage('bot', '⚠️ 服务暂时不可用，请稍后再试');
+            } finally {
+                showTypingIndicator(false);
+            }
+        }
+
+        // 添加消息到界面
+        function addMessage(role, text) {
+            const messagesDiv = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${role}`;
+            messageEl.innerHTML = `
+                <div class="message-bubble">${text}</div>
+            `;
+            messagesDiv.appendChild(messageEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // 显示/隐藏输入提示
+        function showTypingIndicator(show) {
+            document.getElementById('typing').style.display = show ? 'block' : 'none';
+        }
+
+        // 模拟API调用
+        function mockApiCall(message) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    resolve(`这是对 "${message}" 的模拟回复。真实接入时需替换为实际API调用。`);
+                }, 1000);
+            });
+        }
+
+        // 回车发送支持
+        document.getElementById('input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
 </body>
-</html>
+    </html>
