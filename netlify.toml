@@ -1,0 +1,8 @@
+# 项目根目录添加 netlify.toml
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/chat"
+  status = 200
+
+[dev]
+  framework = "#static"
