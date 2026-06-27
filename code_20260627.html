@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>三档难度人机五子棋</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f0f0f0;display:flex;flex-direction:column;align-items:center;padding:12px 6px}
+#board{background:#d2a679;border:2px #222 solid;touch-action:none;}
+.btns{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+button{padding:9px 16px;font-size:15px;border:none;background:#333;color:#fff;border-radius:6px;}
+button:active{background:#555}
+</style>
+</head>
+<body>
+<canvas id="board" width="480" height="480"></canvas>
+<div class="btns">
+<button onclick="restart()">重新开局</button>
+<button onclick="setEasy()">简单</button>
+<button onclick="setHard()">困难</button>
+<button onclick="setNightmare()">噩梦(最强)</button>
+</div>
+<script>
+const size=15,cell=32,win=5;
+let board=Array(size).fill().map(()=>Array(size).fill(0));
+let turn=1,gameOver=false;
+// 难度档位：0简单 1困难 2噩梦最强
+let diffLevel = 1;
+const c=document.getElementById('board');
+const ctx=c.getContext('2d');
+
+// 难度切换
+function setEasy(){diffLevel=0;alert("切换：简单模式");restart();}
+function setHard(){diffLevel=1;alert("切换：困难模式");restart();}
+function setNightmare(){diffLevel=2;alert("切换：噩梦最强模式");restart();}
+
+// 绘制棋盘
+function drawGrid(){
+ctx.fillStyle='#d2a679';
+ctx.fillRect(0,0,c.width,c.height);
+ctx.strokeStyle='#000';
+ctx.lineWidth=1;
+for(let i=0;i<size;i++){
+ctx.beginPath();
+ctx.moveTo(i*cell,0);ctx.lineTo(i*cell,size*cell);ctx.stroke();
+ctx.beginPath();
+ctx.moveTo(0,i*cell);ctx.lineTo(size*cell,i*cell);ctx.stroke();
+}
+}
+
+// 绘制棋子
+function drawStone(r,c,p){
+let x=c*cell,y=r*cell,radius=cell/2-2;
+ctx.beginPath();
+ctx.arc(x,y,radius,0,Math.PI*2);
+ctx.fillStyle = p===1 ? '#000' : '#fff';
+ctx.fill();
+ctx.strokeStyle='#222';
+ctx.stroke();
+}
+
+// 胜负判断
+function checkWin(r,c,p){
+const dir=[[1,0],[0,1],[1,1],[1,-1]];
+for(let [dr,dc] of dir){
+let cnt=1;
+let nr=r+dr,nc=c+dc;
+while(nr>=0&&nr<size&&nc>=0&&nc<size&&board[nr][nc]===p){cnt++;nr+=dr;nc+=dc}
+nr=r-dr;nc=c-dc;
+while(nr>=0&&nr<size&&nc>=0&&nc<size&&board[nr][nc]===p){cnt++;nr-=dr;nc-=dc}
+if(cnt>=win)return true;
+}
+return false;
+}
+
+// 三套难度权重配置
+function getWeight(){
+    switch(diffLevel){
+        // 简单
+        case 0:
+            return {
+                ai5:99999, ai4:10000, aiLive3:1000, aiDead3:300, aiLive2:100, aiDead2:30, aiOne:1,
+                pl5:99999, pl4:9999, plLive3:800, plDead3:200, plLive2:80, plDead2:20, plOne:1
+            };
+        // 困难
+        case 1:
+            return {
+                ai5:99999, ai4:15000, aiLive3:5000, aiDead3:1200, aiLive2:800, aiDead2:150, aiOne:10,
+                pl5:99999, pl4:18000, plLive3:8000, plDead3:2500, plLive2:1000, plDead2:200, plOne:10
+            };
+        // 噩梦最强
+        case 2:
+            return {
+                ai5:999999, ai4:60000, aiLive3:25000, aiDead3:6000, aiLive2:3000, aiDead2:800, aiOne:50,
+                pl5:999999, pl4:80000, plLive3:40000, plDead3:12000, plLive2:5000, plDead2:1200, plOne:50
+            };
+    }
+}
+
+// 获取一条线棋型：数量+活/死棋
+function getLineStatus(r,c,dr,dc,player){
+let count=1;
+let leftOpen=true,rightOpen=true;
+// 正向
+let nr=r+dr, nc=c+dc;
+while(nr>=0&&nr<size&&nc>=0&&nc<size&&board[nr][nc]===player){
+    count++;
+    nr+=dr;nc+=dc;
+}
+if(nr>=0&&nr<size&&nc>=0&&nc<size&&board[nr][nc]!==0) rightOpen=false;
+// 反向
+nr=r-dr; nc=c-dc;
+while(nr>=0&&nr<size&&nc>=0&&nc<size&&board[nr][nc]===player){
+    count++;
+    nr-=dr;nc-=dc;
+}
+if(nr>=0&&nr<size&&nc>=0&&nc<size&&board[nr][nc]!==0) leftOpen=false;
+
+return {
+    count:count,
+    live: leftOpen && rightOpen
+};
+}
+
+// 落点打分
+function getPointScore(row,col){
+let total=0;
+const dirs=[[1,0],[0,1],[1,1],[1,-1]];
+const weight = getWeight();
+
+dirs.forEach(([dr,dc])=>{
+    let aiArr = getLineStatus(row,col,dr,dc,2);
+    let plArr = getLineStatus(row,col,dr,dc,1);
+
+    // AI得分
+    if(aiArr.count>=5) total+=weight.ai5;
+    else if(aiArr.count===4) total+=aiArr.live ? weight.ai4 : weight.aiDead3;
+    else if(aiArr.count===3) total+=aiArr.live ? weight.aiLive3 : weight.aiDead3;
+    else if(aiArr.count===2) total+=aiArr.live ? weight.aiLive2 : weight.aiDead2;
+    else if(aiArr.count===1) total+=weight.aiOne;
+
+    // 防守封堵玩家
+    if(plArr.count>=5) total+=weight.pl5;
+    else if(plArr.count===4) total+=plArr.live ? weight.pl4 : weight.plDead3;
+    else if(plArr.count===3) total+=plArr.live ? weight.plLive3 : weight.plDead3;
+    else if(plArr.count===2) total+=plArr.live ? weight.plLive2 : weight.plDead2;
+    else if(plArr.count===1) total+=weight.plOne;
+});
+return total;
+}
+
+// AI落子
+function aiMove(){
+let bestScore = -Infinity;
+let bestPos = null;
+for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+        if(board[r][c] !== 0) continue;
+        let s = getPointScore(r,c);
+        if(s > bestScore){
+            bestScore = s;
+            bestPos = [r,c];
+        }
+    }
+}
+if(!bestPos) return;
+let [r,c] = bestPos;
+board[r][c] = 2;
+drawStone(r,c,2);
+if(checkWin(r,c,2)){
+    gameOver=true;
+    setTimeout(()=>alert("AI获胜！再来一局？"),100);
+}
+turn=1;
+}
+
+// 点击落子
+c.onclick=e=>{
+if(gameOver||turn!==1)return;
+let rect=c.getBoundingClientRect();
+let x=e.clientX-rect.left;
+let y=e.clientY-rect.top;
+let col=Math.round(x/cell);
+let row=Math.round(y/cell);
+if(row<0||row>=size||col<0||col>=size||board[row][col]!==0)return;
+
+board[row][col]=1;
+drawStone(row,col,1);
+if(checkWin(row,col,1)){
+    gameOver=true;
+    setTimeout(()=>alert("恭喜你获胜！"),100);
+    return;
+}
+turn=2;
+setTimeout(aiMove,220);
+}
+
+// 重置对局
+function restart(){
+board=Array(size).fill().map(()=>Array(size).fill(0));
+turn=1;gameOver=false;
+drawGrid();
+}
+
+drawGrid();
+</script>
+</body>
+</html>
